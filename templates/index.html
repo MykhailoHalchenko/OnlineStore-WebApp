@@ -1,0 +1,24 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Clothes Online Store</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}" />
+  </head>
+  <body>
+    <h1>Welcome to Clothes Online Store</h1>
+    <ul>
+      {% for product in products %}
+      <li>
+        <a href="/product/{{ product.id }}">{{ product.name }}</a> - ${{
+        product.price }}
+      </li>
+      {% endfor %}
+    </ul>
+    <form action="/login" method="post">
+      <label for="username">Username:</label>
+      <input type="text" id="username" name="username" required />
+      <button type="submit">Login</button>
+    </form>
+  </body>
+</html>
