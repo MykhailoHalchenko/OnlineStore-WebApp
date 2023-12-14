@@ -1,21 +1,35 @@
 # models.py
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from typing import Dict
 
-DATABASE_URL = "sqlite:///./test.db"
+from pydantic import BaseModel
 
-Base = declarative_base()
-engine = create_engine(DATABASE_URL)
+class User(BaseModel):
+    username: str
+    password: str
 
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
+class Product(BaseModel):
+    id: int
+    name: str
+    price: float
+    image_url: str
 
-class Order(Base):
-    __tablename__ = "orders"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    address = Column(String)
-    payment_method = Column(String)
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class CartItem(BaseModel):
+    product: Product
+    quantity: int
+    item_total: float
+
+class OrderDetails(BaseModel):
+    product: Product
+    quantity: int
+    item_total: float
+
+class Order(BaseModel):
+    user: User
+    order_details: Dict[int, OrderDetails]
+    total_price: float
+    address: str
+    payment_mode: str

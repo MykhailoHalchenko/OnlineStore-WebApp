@@ -1,43 +1,27 @@
-/* static/style.css */
-
+/* static/styles.css */
 body {
-    font-family: 'Arial', sans-serif;
-    margin: 20px;
+  font-family: Arial, sans-serif;
+  margin: 20px;
 }
 
 h1 {
-    color: #333;
+  color: #333;
 }
 
 ul {
-    list-style-type: none;
-    padding: 0;
+  list-style-type: none;
+  padding: 0;
 }
 
 li {
-    margin-bottom: 10px;
-}
-
-form {
-    margin-top: 20px;
-}
-
-label {
-    margin-right: 10px;
-}
-
-input {
-    margin-bottom: 10px;
-}
-
-button {
-    padding: 5px 10px;
-    cursor: pointer;
+  margin-bottom: 10px;
 }
 
 a {
-    display: block;
-    margin-top: 10px;
-    color: #3498db;
-    text-decoration: none;
+  text-decoration: none;
+  color: #007bff;
+}
+
+a:hover {
+  text-decoration: underline;
 }
