@@ -1,6 +1,6 @@
 # models.py
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Float
+from sqlalchemy import Column, Integer, ForeignKey, String, Float
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -40,4 +40,12 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     description = Column(String)
-    price = Column(Float)
+    price = Column(Float)  # Ensure you have the Float import for this line
+
+class Cart(Base):
+    __tablename__ = "carts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    product_id = Column(Integer, ForeignKey("products.id"))
+    quantity = Column(Integer)
