@@ -13,6 +13,7 @@ from schemas import UserCreate, ProductCreate
 from typing import List
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from models import User, Product, Cart, Order, OrderDetail
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
