@@ -1,4 +1,4 @@
-<!-- templates/products.html -->
+<!-- templates/main_page.html -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -6,17 +6,12 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Product Listings</title>
+    <title>Main Page</title>
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}" />
   </head>
   <body>
-    <h1>Product Listings</h1>
-    <ul>
-      {% for product in products %}
-      <li>
-        {{ product.name }} - {{ product.description }} - ${{ product.price }}
-      </li>
-      {% endfor %}
-    </ul>
+    <h1>Welcome to the Online Store!</h1>
+    <p>Explore our amazing products.</p>
+    <a href="{{ url_for('list_products') }}">View Products</a>
   </body>
 </html>

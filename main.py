@@ -1,131 +1,149 @@
-# main.py
-import logging
-from fastapi import FastAPI, Depends, HTTPException, Form, status
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# app/main.py
 
-from database import save_user, save_product, save_cart, save_order, users_db, products_db, cart_db
-from models import User, Product, Token, CartItem, OrderDetails, Order
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from jose import JWTError, jwt
+from fastapi import HTTPException, Request
+from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
+from database import SessionLocal, engine
+from models import User, Product, Cart, Order, OrderDetail
+from schemas import UserCreate, ProductCreate
+from typing import List
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+# Dependency to get the database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+# Password hashing
+password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str):
+    return password_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str):
+    return password_context.verify(plain_password, hashed_password)
+
+# OAuth2 for token-based authentication
+SECRET_KEY = "your-secret-key"
+ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def verify_user(db, username: str, password: str):
-    user = db.get(username)
-    if user and user.password == password:
-        return user
-
-# Function to verify the token
-def verify_token(token: str = Depends(oauth2_scheme)):
+# Dependency to get the current user ID from the token
+def get_user_id(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid credentials",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
-    user = verify_token_from_database(token)
+    user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise credentials_exception
 
-    return user
+    return user.id
 
-def verify_token_from_database(token: str):
-    user = users_db.get(token)
-    return user
+# Registration route
+@app.post("/register/")
+async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if the username is already taken
+    existing_user = db.query(User).filter(User.username == user.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
 
-@app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = verify_user(users_db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = form_data.username + "_token"
-    users_db[token] = user
-
-    return {"access_token": token, "token_type": "bearer"}
-
-@app.get("/login", response_class=HTMLResponse)
-async def login(request: HTMLResponse):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-@app.get("/register", response_class=HTMLResponse)
-async def register(request: HTMLResponse):
-    return templates.TemplateResponse("register.html", {"request": request})
-
-
-@app.post("/register", response_class=HTMLResponse)
-async def register(username: str = Form(...), password: str = Form(...)):
-    if username in users_db:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
-    user = User(username=username, password=password)
-    save_user(user)
+    # Hash the password before saving it in the database
+    hashed_password = hash_password(user.password)
+    db_user = User(username=user.username, password=hashed_password, full_name=user.full_name)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
     return {"message": "User registered successfully"}
 
-@app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_token)])
-async def read_root(current_user: User = Depends(verify_token)):
-    products = list(products_db.values())
-    return templates.TemplateResponse("index.html", {"request": current_user.username, "products": products})
+# Login route
+@app.post("/login/")
+async def login_user(username: str, password: str, db: Session = Depends(get_db)):
+    # Logic for user login
+    # Verify the username and password against the database
+    user = db.query(User).filter(User.username == username).first()
+    if user and verify_password(password, user.password):
+        return {"message": "Login successful"}
+    else:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.post("/add_to_cart/{product_id}", dependencies=[Depends(verify_token)])
-async def add_to_cart(product_id: int, quantity: int = 1, current_user: User = Depends(verify_token)):
-    user_cart = cart_db.get(current_user.username, {})
-    user_cart[product_id] = user_cart.get(product_id, 0) + quantity
-    save_cart(current_user.username, user_cart)
-    return {"message": "Product added to cart successfully"}
+# Main page route
+@app.get("/", response_class=HTMLResponse)
+async def main_page(request: Request):
+    return templates.TemplateResponse("main_page.html", {"request": request})
 
-@app.get("/cart", response_class=HTMLResponse, dependencies=[Depends(verify_token)])
-async def view_cart(current_user: User = Depends(verify_token)):
-    user_cart = cart_db.get(current_user.username, {})
-    cart_items = []
-    total_price = 0
-    for product_id, quantity in user_cart.items():
-        product = products_db.get(product_id)
-        if product:
-            item_total = quantity * product.price
-            total_price += item_total
-            cart_items.append({"product": product, "quantity": quantity, "item_total": item_total})
+# Product listing route
+@app.get("/products/", response_class=HTMLResponse)
+async def list_products(request: Request, db: Session = Depends(get_db)):
+    products = db.query(Product).all()
+    return templates.TemplateResponse("product.html", {"request": request, "products": products})
 
-    return templates.TemplateResponse("cart.html", {"request": current_user.username, "cart_items": cart_items, "total_price": total_price})
+# Add to cart route
+@app.post("/add-to-cart/{product_id}")
+async def add_to_cart(product_id: int, quantity: int, db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
+    # Logic to add a product to the user's cart
+    # Check if the product exists
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-@app.post("/checkout", dependencies=[Depends(verify_token)])
-async def checkout(address: str, payment_mode: str, current_user: User = Depends(verify_token)):
-    user_cart = cart_db.get(current_user.username, {})
-    if not user_cart:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your cart is empty. Add products before checking out.")
+    # Check if the product is already in the user's cart
+    existing_cart_item = db.query(Cart).filter(Cart.user_id == user_id, Cart.product_id == product_id).first()
+    if existing_cart_item:
+        existing_cart_item.quantity += quantity
+    else:
+        new_cart_item = Cart(user_id=user_id, product_id=product_id, quantity=quantity)
+        db.add(new_cart_item)
 
-    total_price = 0
-    order_details = {}
+    db.commit()
+    return {"message": "Product added to the cart successfully"}
 
-    for product_id, quantity in user_cart.items():
-        product = products_db.get(product_id)
-        if product:
-            item_total = quantity * product.price
-            total_price += item_total
-            order_details[product_id] = {"product": product, "quantity": quantity, "item_total": item_total}
+# View cart route
+@app.get("/cart/", response_class=HTMLResponse)
+async def view_cart(request: Request, db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
+    # Logic to retrieve and display the user's cart items
+    cart_items = db.query(Cart).filter(Cart.user_id == user_id).all()
+    return templates.TemplateResponse("cart.html", {"request": request, "cart_items": cart_items})
 
-    order = Order(user=User(username=current_user.username), order_details=order_details, total_price=total_price, address=address, payment_mode=payment_mode)
-    save_order(order)
+# Checkout route
+@app.post("/checkout/")
+async def checkout(address: str, payment_method: str, db: Session = Depends(get_db), user_id: int = Depends(get_user_id)):
+    # Logic for order placement
+    cart_items = db.query(Cart).filter(Cart.user_id == user_id).all()
 
-    cart_db[current_user.username] = {}  # Clear the user's cart after checkout
+    # Create an order and associate it with the user
+    new_order = Order(user_id=user_id, address=address, payment_method=payment_method)
+    db.add(new_order)
+    db.commit()
 
-    # Log the order saved to the database
-    logger.info(f"Order saved to database: {order}")
+    # Move cart items to the order details
+    for cart_item in cart_items:
+        order_detail = OrderDetail(order_id=new_order.id, product_id=cart_item.product_id, quantity=cart_item.quantity)
+        db.add(order_detail)
 
-    # Return a confirmation message
-    return {"message": "Order placed successfully", "order_details": order_details, "total_price": total_price}
+    # Clear the user's cart
+    db.query(Cart).filter(Cart.user_id == user_id).delete()
 
-# Run the app if the file is executed directly
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    db.commit()
+    return {"message": "Order placed successfully"}

@@ -1,22 +1,10 @@
 # database.py
-from typing import Dict
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-from models import User, Product, Order
+DATABASE_URL = "sqlite:///./test.db"
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
 
-users_db: Dict[str, User] = {}
-products_db: Dict[int, Product] = {}
-cart_db: Dict[str, Dict[int, int]] = {}  # {username: {product_id: quantity}}
-orders_db: Dict[int, Order] = {}  # {order_id: Order}
-
-def save_user(user: User):
-    users_db[user.username] = user
-
-def save_product(product: Product):
-    products_db[product.id] = product
-
-def save_cart(username: str, cart: Dict[int, int]):
-    cart_db[username] = cart
-
-def save_order(order: Order):
-    order_id = len(orders_db) + 1
-    orders_db[order_id] = order
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
