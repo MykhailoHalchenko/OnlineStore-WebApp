@@ -1,11 +1,18 @@
+# app/schemas.py
+
 from pydantic import BaseModel
 
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     username: str
-    password: str
     full_name: str
 
-class ProductCreate(BaseModel):
+class UserCreate(UserBase):
+    password: str
+
+class ProductBase(BaseModel):
     name: str
     description: str
-    price: int
+    price: float
+
+class ProductCreate(ProductBase):
+    pass
